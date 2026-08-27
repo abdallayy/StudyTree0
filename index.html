@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>حديقة الوقت</title>
+        <link rel="icon"
+            href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&family=Tajawal:wght@400;500;700&display=swap"
+            rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        <link rel="stylesheet" href="index.css">
+
+        <!-- Three.js: يشغّل المزرعة ثلاثية الأبعاد. لو المتصفح ميدعمش WebGL
+             هترجع الواجهة تلقائي للشبكة الكلاسيكية 2D بدون أي كسر. -->
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+
+        <!-- Post-processing (Bloom) اختياري: لو أي سكريبت هنا فشل يحمّل (مثلاً
+             الشبكة بطيئة) هيرجع garden3d.js يرندر عادي بدون bloom تلقائيًا،
+             فمفيش أي كسر في التجربة. بيتفعّل بس على أجهزة الجودة العالية. -->
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+        <script
+            src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    </head>
+
+    <body>
+
+        <div class="fireflies" id="fireflies"></div>
+
+        <nav class="topbar">
+            <div class="brand"><i class="fa-solid fa-spa"></i> حديقة الوقت</div>
+
+            <div class="timer-mini">
+                <div class="top-row">
+                    <i class="fa-solid fa-seedling tree-state" id="dialTree"></i>
+                    <span class="time-display" id="timeDisplay">00:00:00</span>
+                </div>
+                <div class="mini-bar">
+                    <div class="mini-bar-fill" id="miniBarFill"></div>
+                </div>
+                <div class="goal-line">الهدف: <b id="goalText">12 ساعة</b></div>
+            </div>
+
+            <div class="nav-actions">
+                <span class="fast-badge" id="fastBadge"><i class="fa-solid fa-bolt"></i> وضع اختبار سريع</span>
+                <div class="badge">🌟 <b id="pointsStat">0</b></div>
+                <button class="btn-primary btn-sm" id="startBtn">▶ ابدأ</button>
+                <button class="btn-ghost btn-sm" id="resetBtn">↺ ريستارت</button>
+            </div>
+        </nav>
+
+        <header class="hero">
+            <div class="eyebrow">حديقتك الحقيقية</div>
+            <h1>ازرع <span>وقتك</span>، شجرة بشجرة</h1>
+            <p class="sub">شغّل الساعة من فوق، وكل ما توصل لهدفك خد نقطة وازرع مربع جديد في حديقتك.</p>
+        </header>
+
+        <div class="wrap">
+
+            <div class="stats-strip">
+                <div class="stat-pill"><i class="fa-solid fa-seedling"></i> شجر صغير: <b id="treesStat">0</b></div>
+                <div class="stat-pill"><i class="fa-solid fa-tree"></i> شجر كبير: <b id="bigStat">0</b></div>
+                <div class="stat-pill"><i class="fa-solid fa-fire"></i> لسه على الكبيرة: <b
+                        id="progressBigStat">0/10</b></div>
+                <div class="stat-pill"><i class="fa-solid fa-hourglass-half"></i> الهدف الحالي: <b id="goalTextStat">12
+                        ساعة</b></div>
+            </div>
+            <div class="last-progress" id="lastProgressLine"></div>
+
+            <div class="save-panel">
+                <div class="save-status disconnected" id="saveStatus"><i class="fa-solid fa-circle-exclamation"></i>
+                    <span>البيانات محفوظة محليًا فقط (localStorage)</span>
+                </div>
+                <button class="btn-ghost btn-sm" id="linkFileBtn"><i class="fa-solid fa-link"></i> اربط ملف JSON
+                    حقيقي</button>
+                <button class="btn-ghost btn-sm" id="downloadBtn"><i class="fa-solid fa-download"></i> نزّل نسخة
+                    JSON</button>
+                <button class="btn-ghost btn-sm" id="importBtn"><i class="fa-solid fa-upload"></i> استورد من
+                    ملف</button>
+                <input type="file" id="importInput" accept="application/json">
+            </div>
+
+            <div class="garden-section">
+                <div class="garden-head">
+                    <div>
+                        <div class="garden-title">حديقتك <span>(363 قطعة أرض)</span></div>
+                        <div class="garden-desc">دوس على أي مربع فاضي وأنت معاك نقطة عشان تزرع شجرة. كل 10 شجر صغير
+                            بيفتحلك شجرة كبيرة، وهي بتديك نقطة إضافية وبتخصم ساعة من هدفك القادم.</div>
+                    </div>
+                    <button class="btn-ghost btn-sm" id="view3dBtn" title="جرب المزرعة ثلاثية الأبعاد">
+                        <i class="fa-solid fa-cube"></i> جرب الوضع 3D</button>
+                    <button class="big-tree-toggle" id="bigModeBtn"><i class="fa-solid fa-tree"></i> زرّع شجرة كبيرة
+                        (<span id="bigChargeCount">0</span>)</button>
+                </div>
+                <div class="garden-board" id="gardenBoard">
+                    <div class="garden3d-holder" id="garden3dHolder">
+                        <div class="garden-loading show" id="gardenLoading">
+                            <div class="spinner"></div>
+                            <span>بنجهز المزرعة ثلاثية الأبعاد...</span>
+                        </div>
+                        <div class="scene-controls">
+                            <button class="scene-btn muted" id="soundToggleBtn" title="الصوت">
+                                <i class="fa-solid fa-volume-xmark"></i>
+                            </button>
+                            <input class="volume-range" id="volumeRange" type="range" min="0" max="1" step="0.05"
+                                value="0.5" title="مستوى الصوت">
+                            <button class="scene-btn" id="cameraResetBtn" title="رجّع الكاميرا لمكانها">
+                                <i class="fa-solid fa-camera-rotate"></i>
+                            </button>
+                            <button class="scene-btn" id="fullscreenBtn" title="فتح المزرعة بكل الشاشة">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button class="scene-btn" id="view2dBtn" title="ارجع للوضع الكلاسيكي 2D">
+                                <i class="fa-solid fa-table-cells"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="plant-action-panel" id="plantActionPanel" aria-live="polite">
+                        <strong><i class="fa-solid fa-seedling"></i> قطعة أرض جاهزة</strong>
+                        <span>اختار الزراعة لتأكيد وضع النبتة هنا.</span>
+                        <button class="btn-primary btn-sm" id="plantActionBtn"><i class="fa-solid fa-seedling"></i> ازرع الآن</button>
+                    </div>
+                    <div class="scene-hint">اسحب لتدوير المزرعة، عجلة الماوس للتكبير، ودوس على أي بقعة فاضية عشان تزرع
+                        🌱</div>
+                    <div class="garden-grid" id="gardenGrid"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <footer>حديقة الوقت — تايمر تفاعلي بيتحول لحديقة حقيقية 🌿</footer>
+
+        <div class="overlay" id="resumeOverlay">
+            <div class="modal">
+                <i class="icon fa-solid fa-hourglass-half"></i>
+                <h2>لقيت تقدم محفوظ</h2>
+                <p id="resumeText">آخر مرة قفلت الساعة كانت واقفة على 00:00:00. عايز تكمل منها ولا تبدأ من الصفر؟</p>
+                <div class="row">
+                    <button class="btn-primary" id="resumeContinueBtn">أكمل من هنا</button>
+                    <button class="btn-danger" id="resumeRestartBtn">ابدأ من صفر</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="milestoneOverlay">
+            <div class="modal">
+                <i class="icon fa-solid fa-star"></i>
+                <h2>وصلت لهدفك!</h2>
+                <p id="milestoneText">خدت نقطة جديدة. عايز تكمل العد من غير ما تاخد نقطة تانية دلوقتي، ولا تعمل ريستارت
+                    وتبدأ دورة جديدة؟</p>
+                <div class="row">
+                    <button class="btn-primary" id="milestoneContinueBtn">أكمل</button>
+                    <button class="btn-danger" id="milestoneRestartBtn">ريستارت</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="treeInfoOverlay">
+            <div class="modal">
+                <i class="icon fa-solid fa-tree"></i>
+                <h2 id="treeInfoTitle">شجرة صغيرة 🌱</h2>
+                <p id="treeInfoText"></p>
+                <div class="row">
+                    <button class="btn-primary" id="treeInfoClose">تمام</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="overlay" id="confirmResetOverlay">
+            <div class="modal">
+                <i class="icon fa-solid fa-triangle-exclamation"></i>
+                <h2>متأكد؟</h2>
+                <p>هيرجع الوقت لصفر من غير ما تاخد نقطة.</p>
+                <div class="row">
+                    <button class="btn-danger" id="confirmResetYes">أيوه، صفّر</button>
+                    <button class="btn-ghost" id="confirmResetNo">لأ، رجّعني</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+
+        
+    </body>
+    <script src="garden3d.js"></script>
+    <script src="index.js"></script>
+
+</html>
